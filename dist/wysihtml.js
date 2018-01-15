@@ -8383,12 +8383,12 @@ wysihtml.dom.getParentElement = (function() {
 
 })();
 
-/* 
+/*
  * Methods for fetching pasted html before it gets inserted into content
 **/
 
 /* Modern event.clipboardData driven approach.
- * Advantage is that it does not have to loose selection or modify dom to catch the data. 
+ * Advantage is that it does not have to loose selection or modify dom to catch the data.
  * IE does not support though.
 **/
 wysihtml.dom.getPastedHtml = function(event) {
@@ -8403,13 +8403,19 @@ wysihtml.dom.getPastedHtml = function(event) {
   return html;
 };
 
+wysihtml.dom.cleanerDivs = [];
+wysihtml.dom.isCleanerDiv = function(element) {
+  return this.cleanerDivs.indexOf(element) !== -1;
+};
 /* Older temprorary contenteditable as paste source catcher method for fallbacks */
 wysihtml.dom.getPastedHtmlWithDiv = function (composer, f) {
   var selBookmark = composer.selection.getBookmark(),
       doc = composer.element.ownerDocument,
       cleanerDiv = doc.createElement('DIV'),
       scrollPos = composer.getScrollPos();
-  
+
+  this.cleanerDivs.push(cleanerDiv);
+
   doc.body.appendChild(cleanerDiv);
 
   cleanerDiv.style.width = "1px";
@@ -8431,6 +8437,7 @@ wysihtml.dom.getPastedHtmlWithDiv = function (composer, f) {
       html = false;
     }
     f(html);
+    wysihtml.dom.cleanerDivs.splice(wysihtml.dom.cleanerDivs.indexOf(cleanerDiv), 1);
     cleanerDiv.parentNode.removeChild(cleanerDiv);
   }, 0);
 };
@@ -12134,7 +12141,7 @@ wysihtml.Commands = Base.extend(
 
   function getOptions(value) {
     var options = typeof value === 'object' ? value : {'href': value};
-    return wysihtml.lang.object({}).merge(nodeOptions).merge({'attribute': value}).get();
+    return wysihtml.lang.object({}).merge(nodeOptions).merge({'attribute': options}).get();
   }
 
   wysihtml.commands.createLink  = {
@@ -15917,12 +15924,12 @@ wysihtml.views.Textarea = wysihtml.views.View.extend(
         uneditableContainer: "wysihtml-uneditable-container"
       },
       // Browsers that support copied source handling will get a marking of the origin of the copied source (for determinig code cleanup rules on paste)
-      // Also copied source is based directly on selection - 
+      // Also copied source is based directly on selection -
       // (very useful for webkit based browsers where copy will otherwise contain a lot of code and styles based on whatever and not actually in selection).
       // If falsy value is passed source override is also disabled
       copyedFromMarking: '<meta name="copied-from" content="wysihtml">'
     },
-    
+
     constructor: function(editableElement, config) {
       this.editableElement  = typeof(editableElement) === "string" ? document.getElementById(editableElement) : editableElement;
       this.config           = wysihtml.lang.object({}).merge(this.defaults).merge(config).get();
@@ -15970,7 +15977,7 @@ wysihtml.views.Textarea = wysihtml.views.View.extend(
         }
         this.runEditorExtenders();
     },
-    
+
     runEditorExtenders: function() {
       wysihtml.editorExtenders.forEach(function(extender) {
         extender(this);
@@ -16076,6 +16083,10 @@ wysihtml.views.Textarea = wysihtml.views.View.extend(
       } else {
         this.on("beforepaste:composer", function(event) {
           event.preventDefault();
+          // Ignore second beforepaste fired by IE11.
+          if(wysihtml.dom.isCleanerDiv(event.target)) {
+            return;
+          }
           var scrollPos = this.composer.getScrollPos();
 
           wysihtml.dom.getPastedHtmlWithDiv(this.composer, function(pastedHTML) {
